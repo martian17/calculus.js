@@ -1,11 +1,3 @@
-const opmap = new Map([
-    [",",[10,+1]],
-    ["-",[20,-1]],
-    ["+",[20,-1]],
-    ["/",[40,-1]],
-    ["*",[40,-1]],
-    ["^",[70,+1]]
-]);
 
 
 class IRNode{
@@ -15,11 +7,19 @@ class IRNode{
             return false;
         return this.opcode === "+" || this.opcode === "-";
     }
-    //virtual IRNode flattern() = 0;
+    //virtual IRNode flatten() = 0;
+    flatten(){
+        console.log(this);
+        throw new Error("Base default flattener called. This shouldn't be happening");
+    }
 }
 // AST nodes
 class FunctionNode extends IRNode{
     type="function";
+    flatten(){
+        console.log(this);
+        throw new Error("FunctionNode default flattener called. This shouldn't be happening");
+    }
 }
 class BinaryNode extends FunctionNode{
     constructor(opcode,left,right){
@@ -27,12 +27,134 @@ class BinaryNode extends FunctionNode{
         this.left = left;
         this.right = right;
     }
+    flatten(){
+        let res = new this.constructor();
+        res.left = this.left.flatten();
+        res.right = this.right.flatten();
+        return res;
+    }
 }
+class BinaryNode_comma extends BinaryNode{
+    constructor(left,right){
+        super(",",left,right);
+    }
+    flatten(){
+        console.log(this);
+        throw new Error("BinaryNode flattener called. BinaryNode should be a direct descendent of a function node. The flattening should have been delegated to UnaryNode_function.");
+    }
+}
+
+// Addition Like Binary Nodes (+ or -)
+const negateBinaryNodeIf = function(node,isNegated){
+    if(!isNegated){
+        return node;
+    }
+    return new BinaryNode_multiply(new NumberNode(-1),node);
+};
+class BinaryNode_additionLike extends BinaryNode{
+    /*No direct construction*/
+    flatten(){
+        let terms = [];
+        this.flatten_helper(terms/*accumulator*/,false/*isNegated*/);
+        return new AdditionNode(terms);
+    }
+}
+class BinaryNode_minus extends BinaryNode_additionLike{
+    constructor(left,right){
+        super("-",left,right);
+    }
+    flatten_helper(terms,isNegated){
+        const {left,right} = this;
+        if(left instanceof BinaryNode_additionLike){
+            left.flatten_helper(terms,isNegated);
+        }else{
+            terms.push(negateBinaryNodeIf(left,isNegated).flatten());
+        }
+        if(right instanceof BinaryNode_additionLike){
+            right.flatten_helper(terms,!isNegated);
+        }else{
+            terms.push(negateBinaryNodeIf(right,!isNegated).flatten());
+        }
+        //no return, just side effect
+    }
+}
+class BinaryNode_plus extends BinaryNode_additionLike{
+    constructor(left,right){
+        super("+",left,right);
+    }
+    flatten_helper(terms,isNegated){
+        const {left,right} = this;
+        if(left instanceof BinaryNode_additionLike){
+            left.flatten_helper(terms,isNegated);
+        }else{
+            terms.push(negateBinaryNodeIf(left,isNegated).flatten());
+        }
+        if(right instanceof BinaryNode_additionLike){
+            right.flatten_helper(terms,isNegated);
+        }else{
+            terms.push(negateBinaryNodeIf(right,isNegated).flatten());
+        }
+        //no return, just side effect
+    }
+}
+
+// Multiplication Like Binary Nodes
+const InvertFactorIf(factor,isInverted){
+    if(isInverted)return factor;
+    // wip: return new BinaryNode_power(new NumberNode(-1),node);
+}
+class BinaryNode_multiplicationLike extends BinaryNode{
+}
+class BinaryNode_divide extends BinaryNode_multiplicationLike{
+    constructor(left,right){
+        super("/",left,right);
+    }
+}
+class BinaryNode_multiply extends BinaryNode_multiplicationLike{
+    constructor(left,right){
+        super("*",left,right);
+    }
+}
+class BinaryNode_exp extends BinaryNode_multiplicationLike{
+    constructor(left,right){
+        super("^",left,right);
+    }
+}
+const opmap = new Map([
+    [",",[10,+1,BinaryNode_comma]]
+    ,
+    ["-",[20,-1,BinaryNode_minus]],
+    ["+",[20,-1,BinaryNode_plus]],
+    ["/",[40,-1,BinaryNode_divide]],
+    ["*",[40,-1,BinaryNode_multiply]],
+    ["^",[70,+1,BinaryNode_exp]]
+]);
+
+
+
 class UnaryNode extends FunctionNode{
     constructor(opcode,value){
         this.opcode = opcode;
         this.value = value;
     }
+}
+class UnaryNode_function extends UnaryNode{
+    flatten(){
+        let right = this.value;
+        let args = [];
+        // Comma is left associable, thus looping only right node
+        while(right instanceof BinaryNode_comma){
+            args.push(right.left);
+            right = right.right;
+        }
+        args.push(right);
+        return new FunctionNode(this.opcode,[value.flatten()]);
+    }
+    constructor(opcode,args){
+        super(o);
+        this.args = args;
+    }
+
 }
 class NumberNode extends IRNode{
     constructor(val){
@@ -61,9 +183,6 @@ class NumberNode extends AST{
     }
 }
 
-
-
-class FlatIR{} // Transformable IR
 
 
 const parseMath = function(str){
@@ -241,13 +360,13 @@ const isAdditionLike = function(ast){
     }
 }
 
-const flatternAddition = function(ast){
+const flattenAddition = function(ast){
     const {left,right} = ast;
     if(left.opcode === "+" || left.){
     }
 }
 
-const flatternMuldiplication = function(ast){
+const flattenMuldiplication = function(ast){
     if(){
     }
 }
@@ -255,13 +374,13 @@ const flatternMuldiplication = function(ast){
 
 
 
-const flatternAST = function(ast){
+const flattenAST = function(ast){
     if(ast.type === "binary"){
         let left = cleanAST(ast.left);
         let right = cleanAST(ast.right);
         let opcode = ast.value;
         if(opcode === "+" || opcode === "-"){
-            flatternAddition();
+            flattenAddition();
         }
 
 
